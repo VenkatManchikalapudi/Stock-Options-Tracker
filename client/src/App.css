@@ -35,7 +35,7 @@
     rgba(0, 212, 180, 0.07) 0%,
     transparent 60%
   );
-  max-width: 1020px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px 80px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -679,4 +679,207 @@ button:disabled {
   font-size: 0.68rem;
   color: var(--muted);
   font-family: var(--mono);
+}
+
+/* ── News Card ───────────────────────────────────────────────────────────────── */
+.sentiment-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sentiment-summary {
+  margin: 16px 0 12px;
+}
+
+.sentiment-bar-wrap {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--border);
+  margin-bottom: 8px;
+}
+
+.sentiment-bar-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.sentiment-bar-fill.bullish {
+  background: var(--gain);
+}
+.sentiment-bar-fill.neutral {
+  background: #8892a4;
+}
+.sentiment-bar-fill.bearish {
+  background: var(--loss);
+}
+
+.sentiment-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.74rem;
+  font-family: var(--mono);
+}
+
+.news-neutral {
+  color: #8892a4;
+}
+
+.confidence-label {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+/* News list */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.news-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+
+.news-item:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.news-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.sentiment-dot-bullish {
+  background: var(--gain);
+}
+.sentiment-dot-bearish {
+  background: var(--loss);
+}
+.sentiment-dot-neutral {
+  background: #8892a4;
+}
+
+.news-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-title {
+  display: block;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.45;
+  text-decoration: none;
+  margin-bottom: 4px;
+  transition: color 0.15s;
+}
+
+.news-title:hover {
+  color: var(--accent);
+}
+
+.news-title-plain {
+  display: block;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.news-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.71rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.news-meta-sep {
+  opacity: 0.4;
+}
+
+/* Compact variant — no per-article sentiment badge, tighter padding */
+.news-item-compact {
+  padding: 7px 10px;
+}
+
+.news-summary-card .news-item {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Stock + News side-by-side layout ────────────────────────────────────────── */
+.stock-news-layout {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+}
+
+.stock-card,
+.stock-news-layout .news-summary-card {
+  max-height: calc(50vh - 16px);
+  overflow-y: auto;
+}
+
+/* Adjust layout to place news cards beside the chart */
+.stock-news-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr; /* Chart takes 2/3, news takes 1/3 */
+  grid-template-rows: auto;
+  gap: 16px;
+  height: 100vh;
+}
+
+.stock-card {
+  max-height: calc(
+    100vh - 182px
+  ); /* Subtracting 150px from the previous height */
+  overflow-y: auto;
+}
+
+.stock-news-layout .news-summary-card {
+  max-height: calc(
+    100vh - 182px
+  ); /* Subtracting 150px from the previous height */
+  overflow-y: auto;
+}
+
+/* Make card heights dynamic to fit viewport */
+.stock-news-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr; /* Chart takes 2/3, news takes 1/3 */
+  grid-template-rows: auto;
+  gap: 16px;
+  height: 100vh;
+}
+
+.stock-card,
+.stock-news-layout .news-summary-card {
+  height: 100%; /* Dynamically adjust to fill available space */
+  overflow-y: auto;
 }

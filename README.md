@@ -1,4 +1,4 @@
-# Stock Options Tracker
+# Stock & Options Researcher
 
 A full-stack AI-powered stock and options research tool. Ask natural language questions — by ticker symbol or company name — about stock prices, options chains, and price history. A local AI orchestrator routes your query to the right agent, fetches live data via Yahoo Finance, and returns a formatted response with charts.
 
@@ -6,7 +6,7 @@ A full-stack AI-powered stock and options research tool. Ask natural language qu
 
 ## Preview
 
-![AAPL stock data with price chart](docs/aapl-screenshot.png)
+![AAPL stock data with price chart, news sentiment side-by-side](docs/aapl-screenshot.png)
 
 ---
 
@@ -24,6 +24,7 @@ See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
 | Backend API    | FastAPI + Uvicorn                                    |
 | Orchestration  | `OrchestratorAgent` — `phi4-mini` (Ollama)           |
 | Finance Agent  | `FinanceAgent` — `llama3.2` (Ollama)                 |
+| News Agent     | `NewsAgent` — `qwen2.5-coder:7b` (Ollama)            |
 | Data Tools     | MCP server via `FastMCP` (stdio transport)           |
 | Market Data    | `yfinance`, `pandas`                                 |
 | AI Runtime     | Ollama (local, no API key required)                  |
@@ -42,7 +43,8 @@ See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
 │   ├── agents/
 │   │   ├── base_agent.py         # Abstract BaseAgent interface
 │   │   ├── orchestrator_agent.py # Routing + intent detection (phi4-mini)
-│   │   └── finance_agent.py      # Data fetching + formatting (llama3.2)
+│   │   ├── finance_agent.py      # Data fetching + formatting (llama3.2)
+│   │   └── news_agent.py         # News fetch + sentiment analysis (qwen2.5-coder:7b)
 │   ├── data/
 │   │   ├── __init__.py
 │   │   └── stock_mappings.py     # COMPANY_NAME_MAP, TICKER_GROUPS (Mag7, FAANG, etc.)
@@ -50,7 +52,7 @@ See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
 │       └── server.py             # MCP tools: get_stock_info, get_options, get_stock_history
 └── client/
     └── src/
-        ├── App.jsx               # React UI — charts, options chain, multi-stock table
+        ├── App.jsx               # React UI — charts, options chain, multi-stock table, news feed
         ├── App.css               # Dark Bloomberg-style theme
         └── index.css             # Global dark background
 ```
@@ -80,14 +82,17 @@ The system uses an **Orchestrator → Specialist Agent** pattern:
 | `get_stock_info`    | `ticker`                             | current price + today's OHLCV as JSON                      |
 | `get_options`       | `ticker`, `expiry_date` (YYYY-MM-DD) | puts + calls within ±10% of current price; auto-snaps date |
 | `get_stock_history` | `ticker`, `period` (default `1mo`)   | array of `{date, open, high, low, close, volume}` records  |
+| `get_stock_news`    | `ticker`, `limit` (default `10`)     | array of `{title, publisher, link, published_at}` articles |
 
 ### Frontend Features
 
-- **Dark terminal-inspired UI** — Bloomberg-style theme with glassmorphism and gradient accents.
-- **Price chart** — interactive `AreaChart` (recharts) with period tabs (5D / 1M / 3M / 6M / 1Y), custom OHLCV tooltip, dashed reference line at current price, teal/red coloring based on direction.
+- **Dark terminal-inspired UI** — Bloomberg-style theme with glassmorphism and gradient accents. Cards are sized to fit the viewport without page scrolling.
+- **Price chart** — interactive `AreaChart` (recharts) with period tabs (5D / 1M / 3M / 6M / 1Y), custom OHLCV tooltip showing **% change for the selected period**, dashed reference line at current price, teal/red coloring based on direction.
+- **Side-by-side layout** — stock chart card and news/sentiment card rendered side-by-side; the news panel is independently scrollable when articles overflow.
 - **OHLCV stat grid** — Open, High, Low, Close, Volume tiles.
 - **Options chain** — side-by-side PUTS/CALLS tables with current-price marker row and nearest-strike highlight.
 - **Multi-stock table** — sortable table for basket/group queries (Mag 7, FAANG, etc.).
+- **News + sentiment feed** — latest headlines with per-article BULLISH/BEARISH/NEUTRAL badges, overall sentiment summary, and confidence score.
 
 ---
 
@@ -101,6 +106,7 @@ The system uses an **Orchestrator → Specialist Agent** pattern:
   ```bash
   ollama pull phi4-mini
   ollama pull llama3.2
+  ollama pull qwen2.5-coder:7b
   ```
 
 ### Backend
@@ -144,3 +150,10 @@ Open [http://localhost:5173](http://localhost:5173).
 - `Show me Mag 7 stocks`
 - `FAANG prices`
 - `Compare AAPL MSFT GOOGL`
+
+**News & sentiment**
+
+- `NVDA news and sentiment`
+- `What are the latest headlines for TSLA?`
+- `AAPL market buzz`
+- `PLTR sentiment`

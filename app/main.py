@@ -17,4 +17,4 @@ app.include_router(chat.router)
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the Stock Options Tracker API!"}
+    return {"message": "Welcome to the Stock & Options Researcher API!"}

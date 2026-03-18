@@ -7,6 +7,7 @@ import ollama
 
 from .base_agent import BaseAgent
 from .finance_agent import FinanceAgent
+from .news_agent import NewsAgent
 from ..data.stock_mappings import COMPANY_NAME_MAP, TICKER_GROUPS
 
 # Lightweight model — fast JSON classification, no heavy reasoning needed
@@ -52,6 +53,8 @@ _STOPWORDS = {
     # Options-related words that must never be matched as tickers
     "OPTIONS", "OPTION", "CHAIN", "CALLS", "PUTS", "EXPIRY", "STRIKE",
     "PRICE", "PRICES", "TRADING", "QUOTE", "WORTH", "VALUE",
+    # News-related words
+    "NEWS", "HEADLINES", "HEADLINE", "SENTIMENT", "BUZZ", "MARKET",
 }
 
 # Describe available agents for the LLM routing prompt
@@ -60,7 +63,9 @@ _AGENT_REGISTRY_DESCRIPTION = (
     '- agent: "finance", action: "get_stock_info",      params: {"ticker": "<SYMBOL>"}\n'
     '- agent: "finance", action: "get_multiple_stocks", params: {"tickers": ["<SYMBOL>", "<SYMBOL>"]}\n'
     '- agent: "finance", action: "get_options",         params: {"ticker": "<SYMBOL>", "expiry_date": "<YYYY-MM-DD>"}\n'
+    '- agent: "news",    action: "get_news",            params: {"ticker": "<SYMBOL>"}\n'
     "Use get_multiple_stocks when the user asks about several tickers at once.\n"
+    "Use get_news when the user asks about news, headlines, sentiment, or buzz around a stock.\n"
 )
 
 # Fast-path regex patterns — avoids LLM for common queries
@@ -81,6 +86,13 @@ _OPTIONS_RE = re.compile(
 _PRICE_RE = re.compile(
     r"\b(?:price|trading|quote|worth|value)\b.*?\b([A-Z]{1,5})\b"
     r"|\b([A-Z]{1,5})\b.*?\b(?:price|trading|quote|worth|value)\b",
+    re.IGNORECASE,
+)
+
+# News / sentiment query
+_NEWS_RE = re.compile(
+    r"\b(?:news|headlines?|sentiment|buzz)\b.*?\b([A-Z]{2,5})\b"
+    r"|\b([A-Z]{2,5})\b.*?\b(?:news|headlines?|sentiment|buzz)\b",
     re.IGNORECASE,
 )
 
@@ -115,6 +127,13 @@ def _detect_intent(text: str):
     Returns (agent_name, action, params) or None.
     """
     upper = text.upper()
+
+    # News / sentiment query
+    m = _NEWS_RE.search(text)
+    if m:
+        ticker = (m.group(1) or m.group(2) or "").upper()
+        if ticker and ticker not in _STOPWORDS:
+            return "news", "get_news", {"ticker": ticker}
 
     # Options query
     m = _OPTIONS_RE.search(text)
@@ -186,7 +205,10 @@ _AGENT_INSTANCES: dict[str, BaseAgent] = {}
 def _get_agents() -> dict[str, BaseAgent]:
     global _AGENT_INSTANCES
     if not _AGENT_INSTANCES:
-        _AGENT_INSTANCES = {"finance": FinanceAgent()}
+        _AGENT_INSTANCES = {
+            "finance": FinanceAgent(),
+            "news":    NewsAgent(),
+        }
     return _AGENT_INSTANCES
 
 
@@ -244,10 +266,13 @@ class OrchestratorAgent:
 
         return {
             "response": (
-                "I can help with stock prices and options chains. Try asking:\n"
+                "I can help with stock prices, options chains, and market news. Try asking:\n"
                 "  \u2022 'What is the price of AAPL?'\n"
-                "  \u2022 'Show me TSLA options for 03/20/2026'"
+                "  \u2022 'Show me TSLA options for 03/20/2026'\n"
+                "  \u2022 'NVDA news and sentiment'"
             ),
-            "stock": None,
+            "stock":   None,
+            "stocks":  None,
             "options": None,
+            "news":    None,
         }

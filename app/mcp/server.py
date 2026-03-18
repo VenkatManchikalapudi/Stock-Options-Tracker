@@ -105,6 +105,58 @@ def get_options(ticker: str, expiry_date: str = "") -> str:
 
 
 @mcp.tool()
+def get_stock_news(ticker: str, limit: int = 10) -> str:
+    """
+    Fetch recent news articles for a stock.
+    Returns a JSON array of {title, publisher, link, published_at}.
+    Handles both old and new yfinance news formats.
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        raw_news = stock.news
+        if not raw_news:
+            return json.dumps([])
+
+        articles = []
+        for item in raw_news[:limit]:
+            # yfinance >= 0.2.50 wraps fields inside a "content" sub-dict
+            content = item.get("content", item) if isinstance(item, dict) else {}
+
+            title = (
+                content.get("title") or item.get("title", "")
+            )
+            # Publisher: new format has a "provider" dict
+            provider = content.get("provider", {})
+            publisher = (
+                provider.get("displayName", "") if isinstance(provider, dict)
+                else content.get("publisher") or item.get("publisher", "")
+            )
+            # Link: new format uses canonicalUrl dict
+            canonical = content.get("canonicalUrl", {})
+            link = (
+                canonical.get("url", "") if isinstance(canonical, dict)
+                else content.get("link") or item.get("link", "")
+            )
+            # Publish time: ISO string (new) or unix timestamp (old)
+            pub_time = content.get("pubDate") or item.get("providerPublishTime", "")
+            if isinstance(pub_time, (int, float)):
+                from datetime import datetime, timezone as _tz
+                pub_time = datetime.fromtimestamp(pub_time, tz=_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+            if title:
+                articles.append({
+                    "title": title,
+                    "publisher": publisher,
+                    "link": link,
+                    "published_at": pub_time,
+                })
+
+        return json.dumps(articles)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
 def get_stock_history(ticker: str, period: str = "1mo") -> str:
     """
     Fetch historical daily OHLCV for a stock.

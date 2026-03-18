@@ -1,15 +1,16 @@
 flowchart TD
     User(["💬 User\n(Browser)"])
-    UI["React 19 + Vite\nlocalhost:5173\n─────────────────\nStockChart (Recharts)\nOHLCV Stat Grid\nOptions Chain\nMulti-Stock Table"]
+    UI["React 19 + Vite\nlocalhost:5173\n─────────────────\nStockChart (Recharts)\n  · Period tabs 5D/1M/3M/6M/1Y\n  · % Change badge per period\n  · Side-by-side with News card\nOHLCV Stat Grid\nOptions Chain\nMulti-Stock Table\nNews + Sentiment Feed (scrollable)"]
     API["FastAPI\nlocalhost:8000\nPOST /chat"]
     Orch["OrchestratorAgent\n(phi4-mini)"]
     Resolve["_resolve_company_names()\nCompany → Ticker\napp/data/stock_mappings.py\n100+ entries"]
     FastPath{"Fast-path\nregex match?"}
     LLMRoute["LLM Routing\nphi4-mini classifies\nintent → JSON"]
     Finance["FinanceAgent\n(llama3.2)"]
+    News["NewsAgent\n(qwen2.5-coder:7b)"]
     MCP["MCP Server\n(stdio subprocess)\napp/mcp/server.py"]
     YF["Yahoo Finance\n(yfinance)"]
-    Result["{response, stock, stocks, options}\nstock includes history[]"]
+    Result["{response, stock, stocks, options, news}\nstock includes history[]"]
 
     subgraph data ["app/data/"]
         Mappings["stock_mappings.py\nCOMPANY_NAME_MAP\nTICKER_GROUPS\n(Mag7, FAANG, etc.)"]
@@ -19,6 +20,7 @@ flowchart TD
         T1["get_stock_info\nticker → OHLCV"]
         T2["get_options\nticker + expiry →\nputs / calls ±10%\nauto-snaps to nearest date"]
         T3["get_stock_history\nticker + period →\ndaily OHLCV array"]
+        T4["get_stock_news\nticker + limit →\narticles array"]
     end
 
     User -->|"natural language query"| UI
@@ -30,20 +32,27 @@ flowchart TD
     Resolve -->|"normalised message"| FastPath
 
     FastPath -->|"yes — options/price\nregex matched"| Finance
+    FastPath -->|"yes — news/sentiment\nregex matched"| News
     FastPath -->|"no — ambiguous query"| LLMRoute
-    LLMRoute -->|"{agent, action, params}"| Finance
+    LLMRoute -->|"{agent: finance}"| Finance
+    LLMRoute -->|"{agent: news}"| News
 
     Finance -->|"get_stock_info +\nget_stock_history\n(concurrent)"| T1
     Finance -->|"get_options"| T2
     Finance -->|"get_stock_history"| T3
+    Finance -->|"get_news co-fetched\nwith stock_info"| News
 
-    T1 & T2 & T3 --> MCP
+    News -->|"get_stock_news"| T4
+
+    T1 & T2 & T3 & T4 --> MCP
     MCP --> YF
     YF -->|"raw data"| MCP
     MCP -->|"raw JSON string"| Finance
+    MCP -->|"raw JSON string"| News
 
     Finance -->|"formats data\n+ llama3.2 for prose"| Result
+    News -->|"AI sentiment analysis\n+ qwen2.5-coder:7b"| Result
     Result --> Orch
-    Orch -->|"{response, stock, stocks, options}"| API
+    Orch -->|"{response, stock, stocks, options, news}"| API
     API -->|"JSON response"| UI
-    UI -->|"chart + tables + prose"| User
+    UI -->|"chart + tables + prose\n+ news feed"| User

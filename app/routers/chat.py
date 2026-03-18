@@ -22,6 +22,7 @@ async def chat_endpoint(request: Request):
             "stock":    result.get("stock"),
             "stocks":   result.get("stocks"),
             "options":  result.get("options"),
+            "news":     result.get("news"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -72,6 +72,8 @@ function StockChart({ history, ticker, currentPrice }) {
   const isUp = last >= first;
   const accent = isUp ? "#00d4b4" : "#ff4d6d";
 
+  const percentageChange = ((last - first) / first) * 100;
+
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
@@ -83,6 +85,9 @@ function StockChart({ history, ticker, currentPrice }) {
           O ${fmtPrice(d.open)} · H ${fmtPrice(d.high)} · L ${fmtPrice(d.low)}
         </span>
         <span className="tooltip-vol">Vol {fmtVol(d.volume)}</span>
+        <span className="tooltip-change">
+          Change: {percentageChange.toFixed(2)}%
+        </span>
       </div>
     );
   };
@@ -401,6 +406,189 @@ function OptionsTable({ rows, label, currentPrice }) {
   );
 }
 
+// ── News Summary Card (compact — shown alongside stock info) ──────────────────
+
+function NewsSummaryCard({ news }) {
+  const { ticker, overall, confidence, summary, articles } = news;
+  const total = articles.length || 1;
+  const bullish = articles.filter((a) => a.sentiment === "BULLISH").length;
+  const bearish = articles.filter((a) => a.sentiment === "BEARISH").length;
+  const neutral = articles.filter((a) => a.sentiment === "NEUTRAL").length;
+
+  return (
+    <div className="stock-card news-summary-card">
+      <div className="stock-header">
+        <div>
+          <span className="ticker-symbol">{ticker}</span>
+          <span className="stock-label">Market Sentiment</span>
+        </div>
+        <SentimentBadge sentiment={overall} />
+      </div>
+
+      <div className="sentiment-summary">
+        <div className="sentiment-bar-wrap">
+          <div
+            className="sentiment-bar-fill bullish"
+            style={{ width: `${(bullish / total) * 100}%` }}
+          />
+          <div
+            className="sentiment-bar-fill neutral"
+            style={{ width: `${(neutral / total) * 100}%` }}
+          />
+          <div
+            className="sentiment-bar-fill bearish"
+            style={{ width: `${(bearish / total) * 100}%` }}
+          />
+        </div>
+        <div className="sentiment-legend">
+          <span className="up">▲ {bullish} Bullish</span>
+          <span className="news-neutral">● {neutral} Neutral</span>
+          <span className="down">▼ {bearish} Bearish</span>
+          <span className="confidence-label">{confidence}% confidence</span>
+        </div>
+        {summary && <p className="ai-response">{summary}</p>}
+      </div>
+
+      <div className="news-list">
+        {articles.map((article, i) => (
+          <div key={i} className="news-item news-item-compact">
+            <span
+              className={`news-dot sentiment-dot-${(article.sentiment || "neutral").toLowerCase()}`}
+            />
+            <div className="news-body">
+              {article.link ? (
+                <a
+                  href={article.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="news-title"
+                >
+                  {article.title}
+                </a>
+              ) : (
+                <span className="news-title-plain">{article.title}</span>
+              )}
+              <div className="news-meta">
+                {article.publisher && <span>{article.publisher}</span>}
+                {article.published_at && (
+                  <>
+                    <span className="news-meta-sep">·</span>
+                    <span>{article.published_at}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── News Card ─────────────────────────────────────────────────────────────────
+
+const SENTIMENT_COLORS = {
+  BULLISH: { bg: "rgba(0,212,180,0.12)", border: "#00d4b4", text: "#00d4b4" },
+  BEARISH: { bg: "rgba(255,77,109,0.12)", border: "#ff4d6d", text: "#ff4d6d" },
+  NEUTRAL: { bg: "rgba(136,146,164,0.12)", border: "#8892a4", text: "#8892a4" },
+};
+
+function SentimentBadge({ sentiment }) {
+  const s = (sentiment || "NEUTRAL").toUpperCase();
+  const c = SENTIMENT_COLORS[s] || SENTIMENT_COLORS.NEUTRAL;
+  return (
+    <span
+      className="sentiment-badge"
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+      }}
+    >
+      {s === "BULLISH" ? "▲ " : s === "BEARISH" ? "▼ " : "● "}
+      {s}
+    </span>
+  );
+}
+
+function NewsCard({ news }) {
+  const { ticker, overall, confidence, summary, articles } = news;
+  const total = articles.length || 1;
+  const bullish = articles.filter((a) => a.sentiment === "BULLISH").length;
+  const bearish = articles.filter((a) => a.sentiment === "BEARISH").length;
+  const neutral = articles.filter((a) => a.sentiment === "NEUTRAL").length;
+
+  return (
+    <div className="stock-card">
+      <div className="stock-header">
+        <div>
+          <span className="ticker-symbol">{ticker}</span>
+          <span className="stock-label">Market News &amp; Sentiment</span>
+        </div>
+        <SentimentBadge sentiment={overall} />
+      </div>
+
+      <div className="sentiment-summary">
+        <div className="sentiment-bar-wrap">
+          <div
+            className="sentiment-bar-fill bullish"
+            style={{ width: `${(bullish / total) * 100}%` }}
+          />
+          <div
+            className="sentiment-bar-fill neutral"
+            style={{ width: `${(neutral / total) * 100}%` }}
+          />
+          <div
+            className="sentiment-bar-fill bearish"
+            style={{ width: `${(bearish / total) * 100}%` }}
+          />
+        </div>
+        <div className="sentiment-legend">
+          <span className="up">▲ {bullish} Bullish</span>
+          <span className="news-neutral">● {neutral} Neutral</span>
+          <span className="down">▼ {bearish} Bearish</span>
+          <span className="confidence-label">{confidence}% confidence</span>
+        </div>
+        {summary && <p className="ai-response">{summary}</p>}
+      </div>
+
+      <div className="news-list">
+        {articles.map((article, i) => (
+          <div key={i} className="news-item">
+            <span
+              className={`news-dot sentiment-dot-${(article.sentiment || "neutral").toLowerCase()}`}
+            />
+            <div className="news-body">
+              {article.link ? (
+                <a
+                  href={article.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="news-title"
+                >
+                  {article.title}
+                </a>
+              ) : (
+                <span className="news-title-plain">{article.title}</span>
+              )}
+              <div className="news-meta">
+                {article.publisher && <span>{article.publisher}</span>}
+                {article.published_at && (
+                  <>
+                    <span className="news-meta-sep">·</span>
+                    <span>{article.published_at}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <SentimentBadge sentiment={article.sentiment} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Options Chain Card ────────────────────────────────────────────────────────
 
 function OptionsCard({ options }) {
@@ -480,7 +668,7 @@ function App() {
       <header className="app-header">
         <div className="app-logo">📈</div>
         <div className="header-text">
-          <h1 className="app-title">Stock Options Tracker</h1>
+          <h1 className="app-title">Stock &amp; Options Researcher</h1>
           <span className="app-subtitle">
             Live market data &amp; options chains
           </span>
@@ -494,7 +682,7 @@ function App() {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="e.g. What is the price of AAPL?  |  PLTR options for 03/20/2026"
+            placeholder="e.g. AAPL price  |  PLTR options 03/20/2026  |  NVDA news and sentiment"
           />
           <button type="submit" disabled={loading}>
             {loading ? "Loading…" : "Search"}
@@ -515,14 +703,19 @@ function App() {
 
       {result?.stocks?.length > 0 && <MultiStockTable stocks={result.stocks} />}
       {result?.stock && (
-        <StockCard stock={result.stock} response={result.response} />
+        <div className={result.news ? "stock-news-layout" : ""}>
+          <StockCard stock={result.stock} response={result.response} />
+          {result.news && <NewsSummaryCard news={result.news} />}
+        </div>
       )}
       {result?.options && <OptionsCard options={result.options} />}
+      {!result?.stock && result?.news && <NewsCard news={result.news} />}
 
       {result &&
         !result.stocks?.length &&
         !result.stock &&
         !result.options &&
+        !result.news &&
         result.response && (
           <div className="stock-card">
             <p className="ai-response">{result.response}</p>

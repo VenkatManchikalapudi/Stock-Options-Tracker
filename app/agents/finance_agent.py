@@ -47,10 +47,13 @@ class FinanceAgent(BaseAgent):
             return await self._run_multiple(params.get("tickers", []))
 
         if action == "get_stock_info":
+            # Lazily import to avoid circular dependency
+            from .news_agent import NewsAgent  # noqa: PLC0415
             hist_params = {**params, "period": "1y"}
-            raw_info, raw_hist = await asyncio.gather(
+            raw_info, raw_hist, news_result = await asyncio.gather(
                 self._call_tool("get_stock_info", params),
                 self._call_tool("get_stock_history", hist_params),
+                NewsAgent().run("get_news", {**params, "limit": 5}),
             )
             result = await _build_result("get_stock_info", raw_info)
             try:
@@ -59,6 +62,9 @@ class FinanceAgent(BaseAgent):
                     result["stock"]["history"] = history
             except (json.JSONDecodeError, TypeError):
                 pass
+            # Attach compact news blob (only if we got articles back)
+            if isinstance(news_result, dict) and news_result.get("news"):
+                result["news"] = news_result["news"]
             return result
 
         raw_output = await self._call_tool(action, params)
