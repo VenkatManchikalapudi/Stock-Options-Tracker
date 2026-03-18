@@ -1,0 +1,49 @@
+flowchart TD
+    User(["💬 User\n(Browser)"])
+    UI["React 19 + Vite\nlocalhost:5173\n─────────────────\nStockChart (Recharts)\nOHLCV Stat Grid\nOptions Chain\nMulti-Stock Table"]
+    API["FastAPI\nlocalhost:8000\nPOST /chat"]
+    Orch["OrchestratorAgent\n(phi4-mini)"]
+    Resolve["_resolve_company_names()\nCompany → Ticker\napp/data/stock_mappings.py\n100+ entries"]
+    FastPath{"Fast-path\nregex match?"}
+    LLMRoute["LLM Routing\nphi4-mini classifies\nintent → JSON"]
+    Finance["FinanceAgent\n(llama3.2)"]
+    MCP["MCP Server\n(stdio subprocess)\napp/mcp/server.py"]
+    YF["Yahoo Finance\n(yfinance)"]
+    Result["{response, stock, stocks, options}\nstock includes history[]"]
+
+    subgraph data ["app/data/"]
+        Mappings["stock_mappings.py\nCOMPANY_NAME_MAP\nTICKER_GROUPS\n(Mag7, FAANG, etc.)"]
+    end
+
+    subgraph mcp_tools ["MCP Tools"]
+        T1["get_stock_info\nticker → OHLCV"]
+        T2["get_options\nticker + expiry →\nputs / calls ±10%\nauto-snaps to nearest date"]
+        T3["get_stock_history\nticker + period →\ndaily OHLCV array"]
+    end
+
+    User -->|"natural language query"| UI
+    UI -->|"POST {message}"| API
+    API --> Orch
+
+    Mappings -.->|"lookup table"| Resolve
+    Orch --> Resolve
+    Resolve -->|"normalised message"| FastPath
+
+    FastPath -->|"yes — options/price\nregex matched"| Finance
+    FastPath -->|"no — ambiguous query"| LLMRoute
+    LLMRoute -->|"{agent, action, params}"| Finance
+
+    Finance -->|"get_stock_info +\nget_stock_history\n(concurrent)"| T1
+    Finance -->|"get_options"| T2
+    Finance -->|"get_stock_history"| T3
+
+    T1 & T2 & T3 --> MCP
+    MCP --> YF
+    YF -->|"raw data"| MCP
+    MCP -->|"raw JSON string"| Finance
+
+    Finance -->|"formats data\n+ llama3.2 for prose"| Result
+    Result --> Orch
+    Orch -->|"{response, stock, stocks, options}"| API
+    API -->|"JSON response"| UI
+    UI -->|"chart + tables + prose"| User

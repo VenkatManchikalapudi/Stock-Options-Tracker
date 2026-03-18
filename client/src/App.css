@@ -1,0 +1,682 @@
+/* ── Theme tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --bg: #080c14;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hi: rgba(0, 212, 180, 0.35);
+  --text: #c9d1e0;
+  --text-dim: #56617a;
+  --text-head: #eef2ff;
+  --accent: #00d4b4;
+  --accent-glow: rgba(0, 212, 180, 0.18);
+  --gain: #00d4b4;
+  --gain-bg: rgba(0, 212, 180, 0.08);
+  --gain-border: rgba(0, 212, 180, 0.3);
+  --loss: #ff4d6d;
+  --loss-bg: rgba(255, 77, 109, 0.08);
+  --loss-border: rgba(255, 77, 109, 0.3);
+  --mono: "SF Mono", ui-monospace, Consolas, monospace;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+.App {
+  min-height: 100vh;
+  background: var(--bg);
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% -10%,
+    rgba(0, 212, 180, 0.07) 0%,
+    transparent 60%
+  );
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 0 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.app-logo {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #00d4b4, #006eff);
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  box-shadow: 0 0 22px rgba(0, 212, 180, 0.28);
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-head);
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.app-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.header-badge {
+  margin-left: auto;
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid var(--border-hi);
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+
+/* ── Search ─────────────────────────────────────────────────────────────────── */
+.search-wrap {
+  margin-bottom: 28px;
+}
+
+form {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  flex: 1;
+  padding: 13px 18px;
+  font-size: 0.93rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-head);
+  outline: none;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
+}
+
+input::placeholder {
+  color: var(--text-dim);
+}
+
+input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+button {
+  padding: 13px 26px;
+  font-size: 0.93rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #00d4b4 0%, #0099ff 100%);
+  color: #000c14;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  transition:
+    opacity 0.15s,
+    transform 0.12s,
+    box-shadow 0.15s;
+  box-shadow: 0 0 18px rgba(0, 212, 180, 0.22);
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 28px rgba(0, 212, 180, 0.38);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Loading dots ───────────────────────────────────────────────────────────── */
+.loading-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.83rem;
+  margin-bottom: 20px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* ── Error ──────────────────────────────────────────────────────────────────── */
+.error {
+  color: var(--loss);
+  background: var(--loss-bg);
+  border: 1px solid var(--loss-border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin-bottom: 24px;
+  font-size: 0.88rem;
+}
+
+/* ── Card shell ─────────────────────────────────────────────────────────────── */
+.stock-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px 28px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(12px);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.stock-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(0, 212, 180, 0.06);
+}
+
+/* ── Stock header row ───────────────────────────────────────────────────────── */
+.stock-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.ticker-symbol {
+  display: block;
+  font-family: var(--mono);
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  background: linear-gradient(100deg, #ffffff 30%, #7ab8ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stock-label {
+  display: inline-block;
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-top: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.price-block {
+  text-align: right;
+}
+
+.current-price {
+  display: block;
+  font-family: var(--mono);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--text-head);
+}
+
+.expiry-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.price-change {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+/* ── Up / down colours ──────────────────────────────────────────────────────── */
+.up {
+  color: var(--gain);
+}
+.down {
+  color: var(--loss);
+}
+
+/* ── Section label ──────────────────────────────────────────────────────────── */
+.section-label {
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+/* ── OHLCV stat grid ────────────────────────────────────────────────────────── */
+.ohlcv-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 620px) {
+  .ohlcv-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.stat-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-size: 0.97rem;
+  font-weight: 600;
+  color: var(--text-head);
+}
+
+.stat-value.up {
+  color: var(--gain);
+}
+.stat-value.down {
+  color: var(--loss);
+}
+
+/* ── Shared data table ──────────────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+/* ── Range bar ──────────────────────────────────────────────────────────────── */
+.range-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.range-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.range-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text-head);
+}
+.range-sep {
+  color: var(--text-dim);
+}
+.range-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* ── Options layout ─────────────────────────────────────────────────────────── */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.options-section {
+  min-width: 0;
+}
+
+/* ── Badge (PUTS / CALLS) ───────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 3px 12px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+
+.badge-puts {
+  background: var(--loss-bg);
+  color: var(--loss);
+  border: 1px solid var(--loss-border);
+  box-shadow: 0 0 10px rgba(255, 77, 109, 0.1);
+}
+
+.badge-calls {
+  background: var(--gain-bg);
+  color: var(--gain);
+  border: 1px solid var(--gain-border);
+  box-shadow: 0 0 10px rgba(0, 212, 180, 0.1);
+}
+
+/* ── Multi-stock table ──────────────────────────────────────────────────────── */
+.multi-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.multi-table {
+  min-width: 720px;
+}
+
+.multi-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.multi-table th.sortable:hover {
+  background: rgba(0, 212, 180, 0.08);
+  color: var(--accent);
+}
+
+.ticker-cell {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+/* ── AI prose response ──────────────────────────────────────────────────────── */
+.ai-response {
+  font-size: 0.9rem;
+  line-height: 1.72;
+  color: var(--text);
+  white-space: pre-wrap;
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Current-price marker row ───────────────────────────────────────────────── */
+.row-current-price-marker td {
+  padding: 0 12px;
+  border-bottom: none;
+  background: transparent;
+}
+
+.row-current-price-marker td > * {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.price-marker-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  padding: 4px 10px;
+  background: var(--accent-glow);
+  border: 1px solid var(--border-hi);
+  border-radius: 20px;
+  letter-spacing: 0.04em;
+}
+
+.price-marker-line {
+  flex: 1;
+  min-width: 8px;
+  height: 1px;
+  background: var(--border-hi);
+  display: inline-block;
+  margin: 0 6px;
+}
+
+.row-current-price-marker td {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+}
+
+/* ── Nearest-strike row ─────────────────────────────────────────────────────── */
+.row-nearest-strike {
+  background: rgba(0, 212, 180, 0.06) !important;
+  outline: 1px solid rgba(0, 212, 180, 0.2);
+  outline-offset: -1px;
+}
+
+.row-nearest-strike td:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── Divider ────────────────────────────────────────────────────────────────── */
+.card-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+/* ── Stock Chart ─────────────────────────────────────────────────────────────── */
+.chart-wrap {
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 14px 10px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.period-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.period-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: var(--mono);
+  font-weight: 600;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.period-tab:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.period-tab.active {
+  background: rgba(0, 212, 180, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Recharts overrides */
+.recharts-cartesian-axis-tick-value {
+  font-family: var(--mono);
+}
+
+/* Custom Tooltip */
+.chart-tooltip {
+  background: #111b2b;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 160px;
+}
+
+.tooltip-date {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.tooltip-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+  font-family: var(--mono);
+}
+
+.tooltip-ohlcv {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.tooltip-vol {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}

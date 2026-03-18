@@ -1,0 +1,253 @@
+import asyncio
+import json
+import re
+from datetime import datetime
+
+import ollama
+
+from .base_agent import BaseAgent
+from .finance_agent import FinanceAgent
+from ..data.stock_mappings import COMPANY_NAME_MAP, TICKER_GROUPS
+
+# Lightweight model — fast JSON classification, no heavy reasoning needed
+ORCHESTRATOR_MODEL = "phi4-mini:latest"
+
+# Pre-sort company name keys longest-first so multi-word names match before
+# their shorter prefixes (e.g. "palo alto networks" before "palo alto").
+_COMPANY_KEYS_SORTED = sorted(COMPANY_NAME_MAP.keys(), key=len, reverse=True)
+
+
+def _resolve_company_names(text: str) -> str:
+    """
+    Replace any company name in *text* with its ticker symbol.
+    Operates on a lowercased copy for matching but preserves original case
+    of surrounding text by splicing.  Returns the modified string.
+    """
+    lower = text.lower()
+    result = text
+    offset = 0  # tracks drift between original and modified string indices
+
+    for name in _COMPANY_KEYS_SORTED:
+        ticker = COMPANY_NAME_MAP[name]
+        # Only match whole-word boundaries
+        pattern = r"(?<![A-Za-z])" + re.escape(name) + r"(?![A-Za-z])"
+        for m in re.finditer(pattern, lower):
+            start = m.start() + offset
+            end   = m.end()   + offset
+            result = result[:start] + ticker + result[end:]
+            # Recompute lower from result for subsequent iterations
+            offset += len(ticker) - (m.end() - m.start())
+            lower = result.lower()
+            break  # re.finditer iterator invalidated; outer loop will re-search
+
+    return result
+
+
+# Words that are never valid ticker symbols
+_STOPWORDS = {
+    "FOR", "THE", "AND", "ARE", "GET", "PUT", "CALL", "WHAT", "SHOW",
+    "HOW", "CAN", "YOU", "ON", "AT", "IN", "OF", "TO", "A", "AN", "IS",
+    "ME", "MY", "DO", "IT", "ITS", "WITH", "OR", "NOT", "NO", "THAT",
+    "TODAY", "NOW", "GIVE", "TELL", "ABOUT", "STOCK",
+    # Options-related words that must never be matched as tickers
+    "OPTIONS", "OPTION", "CHAIN", "CALLS", "PUTS", "EXPIRY", "STRIKE",
+    "PRICE", "PRICES", "TRADING", "QUOTE", "WORTH", "VALUE",
+}
+
+# Describe available agents for the LLM routing prompt
+_AGENT_REGISTRY_DESCRIPTION = (
+    "Available agents and their actions:\n"
+    '- agent: "finance", action: "get_stock_info",      params: {"ticker": "<SYMBOL>"}\n'
+    '- agent: "finance", action: "get_multiple_stocks", params: {"tickers": ["<SYMBOL>", "<SYMBOL>"]}\n'
+    '- agent: "finance", action: "get_options",         params: {"ticker": "<SYMBOL>", "expiry_date": "<YYYY-MM-DD>"}\n'
+    "Use get_multiple_stocks when the user asks about several tickers at once.\n"
+)
+
+# Fast-path regex patterns — avoids LLM for common queries
+# Handles both word orders:
+#   ticker-first: "APP options chain", "PLTR calls for 03/20/2026"
+#   keyword-first: "options for AAPL", "show me TSLA puts 2026-03-20"
+# Date is optional — if omitted the server defaults to the nearest Friday.
+_OPTIONS_RE = re.compile(
+    r"(?:"
+    r"\b([A-Z]{1,5})\b\s+(?:options?|puts?|calls?|chain)"   # ticker-first
+    r"|\b(?:options?|puts?|calls?|chain)\b.*?\b([A-Z]{1,5})\b"  # keyword-first
+    r")"
+    r"(?:.*?(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2}))?",
+    re.IGNORECASE,
+)
+
+# Matches: "price of AAPL" or "what is TSLA trading at"
+_PRICE_RE = re.compile(
+    r"\b(?:price|trading|quote|worth|value)\b.*?\b([A-Z]{1,5})\b"
+    r"|\b([A-Z]{1,5})\b.*?\b(?:price|trading|quote|worth|value)\b",
+    re.IGNORECASE,
+)
+
+# Standalone ticker detection
+_TICKER_RE = re.compile(r"\b([A-Z]{2,5})\b")
+
+
+
+def _parse_date(raw: str) -> str:
+    """Normalise MM/DD/YYYY or YYYY-MM-DD to YYYY-MM-DD."""
+    raw = raw.strip()
+    if re.match(r"\d{4}-\d{2}-\d{2}", raw):
+        return raw
+    try:
+        return datetime.strptime(raw, "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return raw
+
+
+def _detect_group(text: str):
+    """Fast-path: match known ticker group names (case-insensitive)."""
+    lower = text.lower()
+    for group_name, tickers in TICKER_GROUPS.items():
+        if group_name in lower:
+            return "finance", "get_multiple_stocks", {"tickers": tickers}
+    return None
+
+
+def _detect_intent(text: str):
+    """
+    Fast-path intent detection using regex.
+    Returns (agent_name, action, params) or None.
+    """
+    upper = text.upper()
+
+    # Options query
+    m = _OPTIONS_RE.search(text)
+    if m:
+        # group(1) = ticker-first match, group(2) = keyword-first match
+        raw_ticker = (m.group(1) or m.group(2) or "").upper()
+        if raw_ticker and raw_ticker not in _STOPWORDS:
+            params: dict = {"ticker": raw_ticker}
+            if m.group(3):
+                params["expiry_date"] = _parse_date(m.group(3))
+            return "finance", "get_options", params
+
+    # Price query
+    m = _PRICE_RE.search(text)
+    if m:
+        ticker = (m.group(1) or m.group(2)).upper()
+        if ticker not in _STOPWORDS:
+            return "finance", "get_stock_info", {"ticker": ticker}
+
+    # Standalone all-caps ticker
+    tokens = _TICKER_RE.findall(upper)
+    candidates = [t for t in tokens if t not in _STOPWORDS and len(t) >= 2]
+    if len(candidates) == 1:
+        return "finance", "get_stock_info", {"ticker": candidates[0]}
+
+    return None
+
+
+def _strip_code_fences(text: str) -> str:
+    text = re.sub(r"^```[a-z]*\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    return text.strip()
+
+
+async def _llm_route(user_message: str):
+    """
+    Use phi4-mini to classify the user's intent.
+    Returns a dict {agent, action, params} or None on failure.
+    """
+    system_prompt = (
+        "You are a routing assistant. Given a user message, determine which agent "
+        "and action should handle it. Respond ONLY with valid JSON — no explanation.\n\n"
+        + _AGENT_REGISTRY_DESCRIPTION
+        + "IMPORTANT: Use the EXACT ticker symbol as written by the user. "
+        "Do NOT expand abbreviations or guess alternative symbols "
+        "(e.g. APP means APP, not AAPL; HOOD means HOOD, not something else).\n"
+        'If the message is unrelated to stocks or finance, return: '
+        '{"agent": null, "action": null, "params": {}}'
+    )
+    try:
+        response = await asyncio.to_thread(
+            ollama.chat,
+            model=ORCHESTRATOR_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        raw = _strip_code_fences((response.message.content or "").strip())
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+# Map agent name strings to agent instances (lazy-initialised)
+_AGENT_INSTANCES: dict[str, BaseAgent] = {}
+
+
+def _get_agents() -> dict[str, BaseAgent]:
+    global _AGENT_INSTANCES
+    if not _AGENT_INSTANCES:
+        _AGENT_INSTANCES = {"finance": FinanceAgent()}
+    return _AGENT_INSTANCES
+
+
+class OrchestratorAgent:
+    """
+    Orchestrates user requests by routing them to the appropriate agent.
+
+    Flow:
+      1. Understand user input (fast-path regex or slow-path LLM classification).
+      2. Dispatch to the appropriate agent with (action, params).
+      3. Receive the structured result dict from the agent:
+           {"response": str, "stock": dict|None, "options": dict|None}
+      4. Return the full dict to the caller (API layer extracts what it needs).
+
+    Routing strategy:
+      - Fast-path: regex detects common options/price queries — no LLM overhead.
+      - Slow-path: phi4-mini classifies intent as JSON {agent, action, params}.
+      - Fallback: return a helpful message if intent cannot be determined.
+    """
+
+    async def route(self, user_message: str) -> dict:
+        agents = _get_agents()
+
+        # --- Normalise: replace company names with ticker symbols first ---
+        normalised = _resolve_company_names(user_message)
+
+        # --- Fast path: known ticker group (mag 7, faang, etc.) ---
+        group_intent = _detect_group(normalised)
+        if group_intent:
+            agent_name, action, params = group_intent
+            agent = agents.get(agent_name)
+            if agent:
+                return await agent.run(action, params)
+
+        # --- Fast path: regex-based intent detection (no LLM) ---
+        intent = _detect_intent(normalised)
+        if intent:
+            agent_name, action, params = intent
+            agent = agents.get(agent_name)
+            if agent:
+                # Agent queries data, formats it, and hands back a structured dict
+                return await agent.run(action, params)
+
+        # --- Slow path: LLM-based routing (phi4-mini) ---
+        routing = await _llm_route(normalised)
+        if routing:
+            agent_name = routing.get("agent")
+            action = routing.get("action")
+            params = routing.get("params", {})
+            if agent_name and action:
+                agent = agents.get(agent_name)
+                if agent:
+                    # Agent queries data, formats it, and hands back a structured dict
+                    return await agent.run(action, params)
+
+        return {
+            "response": (
+                "I can help with stock prices and options chains. Try asking:\n"
+                "  \u2022 'What is the price of AAPL?'\n"
+                "  \u2022 'Show me TSLA options for 03/20/2026'"
+            ),
+            "stock": None,
+            "options": None,
+        }
