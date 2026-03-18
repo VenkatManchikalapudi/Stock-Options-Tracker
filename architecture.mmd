@@ -24,13 +24,22 @@ flowchart TD
         Redis[("Redis cache\nlocalhost:6379\n(optional)\nTTL 5 min")]
     end
 
+    subgraph logging ["Logging — app.* hierarchy (INFO)"]
+        L1["app.chat\nmessage · timing · errors"]
+        L2["app.orchestrator\nname resolution · routing path\ndispatched agent + action"]
+        L3["app.finance\naction · MCP tool calls · timing"]
+        L4["app.news\nnews fetch · sentiment result\ntiming · failures"]
+    end
+
     User -->|"natural language query"| UI
     UI -->|"POST {message}"| API
     API --> Orch
+    API -.->|"logs"| L1
 
     Mappings -.->|"lookup table"| Resolve
     Orch --> Resolve
     Resolve -->|"normalised message"| FastPath
+    Orch -.->|"logs"| L2
 
     FastPath -->|"yes — options/price\nregex matched"| Finance
     FastPath -->|"yes — news/sentiment\nregex matched"| News
@@ -42,8 +51,10 @@ flowchart TD
     Finance -->|"get_options"| T2
     Finance -->|"get_stock_history"| T3
     Finance -->|"get_news co-fetched\nwith stock_info"| News
+    Finance -.->|"logs"| L3
 
     News -->|"get_stock_news"| T4
+    News -.->|"logs"| L4
 
     T1 & T2 & T3 & T4 --> MCP
     T1 -.->|"cache hit/miss\n(if available)"| Redis

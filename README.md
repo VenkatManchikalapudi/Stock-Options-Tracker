@@ -28,6 +28,7 @@ See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
 | Data Tools     | MCP server via `FastMCP` (stdio transport)           |
 | Market Data    | `yfinance`, `pandas`                                 |
 | AI Runtime     | Ollama (local, no API key required)                  |
+| Logging        | Python `logging` — `app.*` hierarchy, INFO level     |
 | Stock Mappings | `app/data/stock_mappings.py` — 100+ company → ticker |
 
 ---
@@ -37,14 +38,14 @@ See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
 ```
 .
 ├── app/
-│   ├── main.py                   # FastAPI app + CORS
+│   ├── main.py                   # FastAPI app, CORS, logging config (INFO)
 │   ├── routers/
-│   │   └── chat.py               # POST /chat endpoint
+│   │   └── chat.py               # POST /chat endpoint — logs request, timing, errors
 │   ├── agents/
 │   │   ├── base_agent.py         # Abstract BaseAgent interface
-│   │   ├── orchestrator_agent.py # Routing + intent detection (phi4-mini)
-│   │   ├── finance_agent.py      # Data fetching + formatting (llama3.2)
-│   │   └── news_agent.py         # News fetch + sentiment analysis (qwen2.5-coder:7b)
+│   │   ├── orchestrator_agent.py # Routing + intent detection — logs routing path
+│   │   ├── finance_agent.py      # Data fetching + formatting — logs MCP calls + timing
+│   │   └── news_agent.py         # News fetch + sentiment — logs fetch, analysis, timing
 │   ├── data/
 │   │   ├── __init__.py
 │   │   └── stock_mappings.py     # COMPANY_NAME_MAP, TICKER_GROUPS (Mag7, FAANG, etc.)
@@ -74,6 +75,17 @@ The system uses an **Orchestrator → Specialist Agent** pattern:
    - For **multi-stock queries**: fetches all tickers concurrently.
    - Returns `{"response": str, "stock": dict|None, "stocks": list|None, "options": dict|None}`.
 3. **OrchestratorAgent** forwards the full result dict to the API router.
+
+### Logging
+
+All components emit structured log lines via Python's `logging` module at `INFO` level (configurable in `main.py`). Loggers follow the `app.*` hierarchy so each module can be tuned independently:
+
+| Logger | What it records |
+|---|---|
+| `app.chat` | Incoming message text, total round-trip time, errors with traceback |
+| `app.orchestrator` | Company-name resolutions, routing path taken (group / regex / LLM / fallback), dispatched agent + action |
+| `app.finance` | Action + params received, each MCP tool called with elapsed time |
+| `app.news` | News fetch per ticker, sentiment analysis start, overall result + confidence, elapsed time, failures |
 
 ### MCP Tools
 
@@ -121,6 +133,7 @@ uvicorn app.main:app --port 8000 --reload
 ```
 
 > **Optional — Redis caching**: install `redis` and start a local Redis server on port `6379` to enable 5-minute caching of `get_stock_info` results.
+>
 > ```bash
 > pip install redis
 > redis-server   # or: brew services start redis
