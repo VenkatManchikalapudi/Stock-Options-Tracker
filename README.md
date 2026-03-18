@@ -4,6 +4,12 @@ A full-stack AI-powered stock and options research tool. Ask natural language qu
 
 ---
 
+## Preview
+
+![AAPL stock data with price chart](docs/aapl-screenshot.png)
+
+---
+
 ## Architecture Flow
 
 See [`architecture.mmd`](architecture.mmd) for the full Mermaid source.
