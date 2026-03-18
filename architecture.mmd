@@ -21,6 +21,7 @@ flowchart TD
         T2["get_options\nticker + expiry →\nputs / calls ±10%\nauto-snaps to nearest date"]
         T3["get_stock_history\nticker + period →\ndaily OHLCV array"]
         T4["get_stock_news\nticker + limit →\narticles array"]
+        Redis[("Redis cache\nlocalhost:6379\n(optional)\nTTL 5 min")]
     end
 
     User -->|"natural language query"| UI
@@ -45,6 +46,7 @@ flowchart TD
     News -->|"get_stock_news"| T4
 
     T1 & T2 & T3 & T4 --> MCP
+    T1 -.->|"cache hit/miss\n(if available)"| Redis
     MCP --> YF
     YF -->|"raw data"| MCP
     MCP -->|"raw JSON string"| Finance

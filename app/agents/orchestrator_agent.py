@@ -212,67 +212,53 @@ def _get_agents() -> dict[str, BaseAgent]:
     return _AGENT_INSTANCES
 
 
-class OrchestratorAgent:
-    """
-    Orchestrates user requests by routing them to the appropriate agent.
+class OrchestratorAgent(BaseAgent):
+    def __init__(self, system_prompt: str = ""):
+        super().__init__()
+        self.system_prompt = system_prompt
 
-    Flow:
-      1. Understand user input (fast-path regex or slow-path LLM classification).
-      2. Dispatch to the appropriate agent with (action, params).
-      3. Receive the structured result dict from the agent:
-           {"response": str, "stock": dict|None, "options": dict|None}
-      4. Return the full dict to the caller (API layer extracts what it needs).
-
-    Routing strategy:
-      - Fast-path: regex detects common options/price queries — no LLM overhead.
-      - Slow-path: phi4-mini classifies intent as JSON {agent, action, params}.
-      - Fallback: return a helpful message if intent cannot be determined.
-    """
+    async def run(self, action: str, params: dict) -> dict:
+        """Delegate to route() — satisfies BaseAgent abstract method."""
+        return await self.route(f"{action} {params}")
 
     async def route(self, user_message: str) -> dict:
-        agents = _get_agents()
+        """
+        Classify user intent and dispatch to the appropriate agent.
+        Returns the agent result dict with keys: response, stock, stocks, options, news.
+        """
+        # Step 1: resolve company names → tickers
+        resolved = _resolve_company_names(user_message)
 
-        # --- Normalise: replace company names with ticker symbols first ---
-        normalised = _resolve_company_names(user_message)
+        # Step 2: fast-path — known ticker groups (Mag7, FAANG, …)
+        group_result = _detect_group(resolved)
+        if group_result:
+            agent_name, action, params = group_result
+            return await _get_agents()[agent_name].run(action, params)
 
-        # --- Fast path: known ticker group (mag 7, faang, etc.) ---
-        group_intent = _detect_group(normalised)
-        if group_intent:
-            agent_name, action, params = group_intent
-            agent = agents.get(agent_name)
-            if agent:
-                return await agent.run(action, params)
-
-        # --- Fast path: regex-based intent detection (no LLM) ---
-        intent = _detect_intent(normalised)
+        # Step 3: fast-path regex intent detection
+        intent = _detect_intent(resolved)
         if intent:
             agent_name, action, params = intent
-            agent = agents.get(agent_name)
-            if agent:
-                # Agent queries data, formats it, and hands back a structured dict
-                return await agent.run(action, params)
+            return await _get_agents()[agent_name].run(action, params)
 
-        # --- Slow path: LLM-based routing (phi4-mini) ---
-        routing = await _llm_route(normalised)
-        if routing:
-            agent_name = routing.get("agent")
-            action = routing.get("action")
-            params = routing.get("params", {})
-            if agent_name and action:
-                agent = agents.get(agent_name)
-                if agent:
-                    # Agent queries data, formats it, and hands back a structured dict
-                    return await agent.run(action, params)
+        # Step 4: slow-path LLM routing via phi4-mini
+        route_info = await _llm_route(resolved)
+        if route_info and route_info.get("agent"):
+            agent_name = route_info["agent"]
+            action = route_info.get("action", "")
+            params = route_info.get("params", {})
+            agents = _get_agents()
+            if agent_name in agents:
+                return await agents[agent_name].run(action, params)
 
+        # Step 5: fallback — unrecognised intent
         return {
             "response": (
-                "I can help with stock prices, options chains, and market news. Try asking:\n"
-                "  \u2022 'What is the price of AAPL?'\n"
-                "  \u2022 'Show me TSLA options for 03/20/2026'\n"
-                "  \u2022 'NVDA news and sentiment'"
+                "I'm not sure how to help with that. "
+                "Try asking about a stock price, options chain, or news for a specific ticker."
             ),
-            "stock":   None,
-            "stocks":  None,
+            "stock": None,
+            "stocks": None,
             "options": None,
-            "news":    None,
+            "news": None,
         }

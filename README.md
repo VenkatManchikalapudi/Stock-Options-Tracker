@@ -84,6 +84,8 @@ The system uses an **Orchestrator → Specialist Agent** pattern:
 | `get_stock_history` | `ticker`, `period` (default `1mo`)   | array of `{date, open, high, low, close, volume}` records  |
 | `get_stock_news`    | `ticker`, `limit` (default `10`)     | array of `{title, publisher, link, published_at}` articles |
 
+> **Optional caching**: `get_stock_info` results are cached for 5 minutes if a Redis server is reachable on `localhost:6379`. When Redis is unavailable (not installed or not running), caching is silently skipped and every request fetches live data.
+
 ### Frontend Features
 
 - **Dark terminal-inspired UI** — Bloomberg-style theme with glassmorphism and gradient accents. Cards are sized to fit the viewport without page scrolling.
@@ -117,6 +119,12 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --port 8000 --reload
 ```
+
+> **Optional — Redis caching**: install `redis` and start a local Redis server on port `6379` to enable 5-minute caching of `get_stock_info` results.
+> ```bash
+> pip install redis
+> redis-server   # or: brew services start redis
+> ```
 
 ### Frontend
 

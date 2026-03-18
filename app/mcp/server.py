@@ -6,6 +6,13 @@ import json
 
 mcp = FastMCP("FinanceServer")
 
+try:
+    from redis import Redis
+    redis_client = Redis(host='localhost', port=6379, decode_responses=True)
+    redis_client.ping()  # verify the server is reachable
+except Exception:
+    redis_client = None
+
 
 def _next_friday() -> str:
     """Return the ISO date of the nearest upcoming Friday (or today if today is Friday)."""
@@ -32,6 +39,12 @@ def get_stock_info(ticker: str) -> str:
     Fetch current price and today's OHLCV data for a stock.
     Returns JSON with ticker, current_price, open, high, low, close, volume.
     """
+    cache_key = f"stock_info:{ticker}"
+    if redis_client:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return cached_data
+
     try:
         stock = yf.Ticker(ticker)
         current_price = stock.fast_info["lastPrice"]
@@ -52,6 +65,8 @@ def get_stock_info(ticker: str) -> str:
                 "close":  round(float(row["Close"]), 2),
                 "volume": int(row["Volume"]),
             })
+        if redis_client:
+            redis_client.setex(cache_key, 300, json.dumps(result))  # Cache for 5 minutes
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e), "ticker": ticker.upper()})
