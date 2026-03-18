@@ -47,9 +47,10 @@ class FinanceAgent(BaseAgent):
             return await self._run_multiple(params.get("tickers", []))
 
         if action == "get_stock_info":
+            hist_params = {**params, "period": "1y"}
             raw_info, raw_hist = await asyncio.gather(
                 self._call_tool("get_stock_info", params),
-                self._call_tool("get_stock_history", params),
+                self._call_tool("get_stock_history", hist_params),
             )
             result = await _build_result("get_stock_info", raw_info)
             try:
