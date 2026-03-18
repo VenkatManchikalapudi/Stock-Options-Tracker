@@ -1,6 +1,8 @@
 import asyncio
+import logging
 import sys
 import json
+import time
 from pathlib import Path
 
 import ollama
@@ -14,6 +16,8 @@ SERVER_PATH = str(Path(__file__).parent.parent / "mcp" / "server.py")
 
 # General-purpose model for composing natural language answers from tool data
 FINANCE_MODEL = "llama3.2:latest"
+
+logger = logging.getLogger("app.finance")
 
 
 class FinanceAgent(BaseAgent):
@@ -43,6 +47,7 @@ class FinanceAgent(BaseAgent):
           - stocks   (list | None): list of OHLCV dicts (get_multiple_stocks only)
           - options  (dict | None): parsed options data (get_options only)
         """
+        logger.info("Action: %s  params: %s", action, params)
         if action == "get_multiple_stocks":
             return await self._run_multiple(params.get("tickers", []))
 
@@ -98,6 +103,8 @@ class FinanceAgent(BaseAgent):
 
     async def _call_tool(self, tool_name: str, tool_args: dict) -> str:
         """Open a stdio connection to the MCP server and call the given tool."""
+        logger.debug("MCP call: %s(%s)", tool_name, tool_args)
+        t0 = time.perf_counter()
         server_params = StdioServerParameters(
             command=sys.executable,
             args=[SERVER_PATH],
@@ -106,6 +113,8 @@ class FinanceAgent(BaseAgent):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(tool_name, tool_args)
+                elapsed = time.perf_counter() - t0
+                logger.info("MCP %s completed in %.2fs", tool_name, elapsed)
                 return result.content[0].text if result.content else ""
 
 

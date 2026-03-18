@@ -1,7 +1,9 @@
 import asyncio
 import json
+import logging
 import re
 import sys
+import time
 from pathlib import Path
 
 import ollama
@@ -12,6 +14,8 @@ from .base_agent import BaseAgent
 
 SERVER_PATH = str(Path(__file__).parent.parent / "mcp" / "server.py")
 NEWS_MODEL = "qwen2.5-coder:7b"
+
+logger = logging.getLogger("app.news")
 
 
 class NewsAgent(BaseAgent):
@@ -37,6 +41,7 @@ class NewsAgent(BaseAgent):
         if not ticker:
             return self._empty("No ticker provided.", ticker)
 
+        logger.info("Fetching news for %s (limit=%d)", ticker, limit)
         raw = await self._call_tool("get_stock_news", {"ticker": ticker, "limit": limit})
 
         try:
@@ -114,6 +119,8 @@ class NewsAgent(BaseAgent):
             "}\n\n"
             f"Headlines:\n{headlines}"
         )
+        logger.info("Running sentiment analysis for %s (%d articles)", ticker, len(articles))
+        t0 = time.perf_counter()
         try:
             response = await asyncio.to_thread(
                 ollama.chat,
@@ -123,8 +130,12 @@ class NewsAgent(BaseAgent):
             raw = (response.message.content or "").strip()
             raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
             raw = re.sub(r"\s*```$", "", raw)
-            return json.loads(raw.strip())
-        except Exception:
+            result = json.loads(raw.strip())
+            logger.info("Sentiment analysis completed in %.2fs — %s (%d%%)",
+                        time.perf_counter() - t0, result.get("overall"), result.get("confidence", 0))
+            return result
+        except Exception as exc:
+            logger.warning("Sentiment analysis failed: %s", exc)
             return {
                 "overall":    "NEUTRAL",
                 "confidence": 50,
@@ -133,6 +144,8 @@ class NewsAgent(BaseAgent):
             }
 
     async def _call_tool(self, tool_name: str, tool_args: dict) -> str:
+        logger.debug("MCP call: %s(%s)", tool_name, tool_args)
+        t0 = time.perf_counter()
         server_params = StdioServerParameters(
             command=sys.executable,
             args=[SERVER_PATH],
@@ -141,6 +154,7 @@ class NewsAgent(BaseAgent):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(tool_name, tool_args)
+                logger.info("MCP %s completed in %.2fs", tool_name, time.perf_counter() - t0)
                 return result.content[0].text if result.content else ""
 
     @staticmethod

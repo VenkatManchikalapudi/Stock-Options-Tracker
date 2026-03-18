@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime
 
@@ -9,6 +10,8 @@ from .base_agent import BaseAgent
 from .finance_agent import FinanceAgent
 from .news_agent import NewsAgent
 from ..data.stock_mappings import COMPANY_NAME_MAP, TICKER_GROUPS
+
+logger = logging.getLogger("app.orchestrator")
 
 # Lightweight model — fast JSON classification, no heavy reasoning needed
 ORCHESTRATOR_MODEL = "phi4-mini:latest"
@@ -183,6 +186,7 @@ async def _llm_route(user_message: str):
         'If the message is unrelated to stocks or finance, return: '
         '{"agent": null, "action": null, "params": {}}'
     )
+    logger.debug("LLM routing: %r", user_message)
     try:
         response = await asyncio.to_thread(
             ollama.chat,
@@ -193,8 +197,11 @@ async def _llm_route(user_message: str):
             ],
         )
         raw = _strip_code_fences((response.message.content or "").strip())
-        return json.loads(raw)
-    except Exception:
+        result = json.loads(raw)
+        logger.debug("LLM route result: %s", result)
+        return result
+    except Exception as exc:
+        logger.warning("LLM routing failed: %s", exc)
         return None
 
 
@@ -228,20 +235,25 @@ class OrchestratorAgent(BaseAgent):
         """
         # Step 1: resolve company names → tickers
         resolved = _resolve_company_names(user_message)
+        if resolved != user_message:
+            logger.info("Name resolved: %r → %r", user_message, resolved)
 
         # Step 2: fast-path — known ticker groups (Mag7, FAANG, …)
         group_result = _detect_group(resolved)
         if group_result:
             agent_name, action, params = group_result
+            logger.info("Group fast-path → %s.%s(%s)", agent_name, action, params)
             return await _get_agents()[agent_name].run(action, params)
 
         # Step 3: fast-path regex intent detection
         intent = _detect_intent(resolved)
         if intent:
             agent_name, action, params = intent
+            logger.info("Regex fast-path → %s.%s(%s)", agent_name, action, params)
             return await _get_agents()[agent_name].run(action, params)
 
         # Step 4: slow-path LLM routing via phi4-mini
+        logger.info("No fast-path match; falling back to LLM routing")
         route_info = await _llm_route(resolved)
         if route_info and route_info.get("agent"):
             agent_name = route_info["agent"]
@@ -249,9 +261,11 @@ class OrchestratorAgent(BaseAgent):
             params = route_info.get("params", {})
             agents = _get_agents()
             if agent_name in agents:
+                logger.info("LLM route → %s.%s(%s)", agent_name, action, params)
                 return await agents[agent_name].run(action, params)
 
         # Step 5: fallback — unrecognised intent
+        logger.warning("Intent unrecognised for message: %r", user_message)
         return {
             "response": (
                 "I'm not sure how to help with that. "
